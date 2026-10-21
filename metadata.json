@@ -1,0 +1,6 @@
+{
+  "name": "Night Shift: Sector 09",
+  "description": "A high-tension 3D first-person psychological survival horror game set in an abandoned industrial distribution warehouse with sound-reactive AI.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
