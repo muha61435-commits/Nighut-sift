@@ -94,7 +94,9 @@ export class LevelBuilder {
     this.buildLightingAndFog();
     this.buildOutsideYard();
     this.buildMainWarehouseFloor();
+    this.buildWestLogisticsWing();
     this.buildShippingArea();
+    this.buildEastSortingHub();
     this.buildAdminOffices();
     this.buildMaintenanceCorridors();
     this.buildBasementGeneratorRoom();
@@ -296,7 +298,13 @@ export class LevelBuilder {
     this.scene.add(ceiling);
 
     // Perimeter Walls of Main Floor
-    this.addWall(-floorW / 2, 0, centerZ, 0.8, floorH, floorD); // West wall
+    // West wall with two 6-meter-wide open archways at Z = -11 and Z = 11 leading to West Logistics Wing
+    this.addWall(-floorW / 2, 0, -20, 0.8, floorH, 12);
+    this.addWall(-floorW / 2, 5.5, -11, 0.8, floorH - 5.5, 6); // Lintel arch north
+    this.addWall(-floorW / 2, 0, 0, 0.8, floorH, 16);
+    this.addWall(-floorW / 2, 5.5, 11, 0.8, floorH - 5.5, 6); // Lintel arch south
+    this.addWall(-floorW / 2, 0, 20, 0.8, floorH, 12);
+
     // East wall (with opening to Shipping area at Z ~ 20)
     this.addWall(floorW / 2, 0, -8, 0.8, floorH, 36);
     this.addWall(floorW / 2, 0, 24, 0.8, floorH, 6);
@@ -319,6 +327,58 @@ export class LevelBuilder {
 
     this.buildStorageRack(18, 0, 4, 3, 8, 14, 'D');
     this.buildStorageRack(18, 0, -12, 3, 8, 14, 'D2');
+  }
+
+  // --- 3B. WEST LOGISTICS & HIGH-BAY STORAGE WING ---
+  private buildWestLogisticsWing(): void {
+    const wingW = 30;
+    const wingD = 52;
+    const wingH = 10;
+    const centerX = -42;
+    const centerZ = 0;
+
+    // Floor & Ceiling
+    this.addFloor(centerX, 0, centerZ, wingW, wingD, this.concreteMat);
+    const ceiling = new THREE.Mesh(new THREE.BoxGeometry(wingW, 0.4, wingD), this.metalMat);
+    ceiling.position.set(centerX, wingH, centerZ);
+    this.scene.add(ceiling);
+
+    // Perimeter Outer Walls
+    this.addWall(centerX - wingW / 2, 0, centerZ, 0.8, wingH, wingD); // West outer wall at X = -57
+    this.addWall(centerX, 0, -wingD / 2, wingW, wingH, 0.8);          // North outer wall at Z = -26
+    this.addWall(centerX, 0, wingD / 2, wingW, wingH, 0.8);           // South outer wall at Z = 26
+
+    // Overhead high-bay fluorescent lights
+    this.createCeilingLamp(centerX, 8, 12, 0xe8f0e8, 2.2, true);
+    this.createCeilingLamp(centerX, 8, -12, 0xe8f0e8, 2.2, false);
+    this.createEmergencyBeacon(centerX - 12, 4, 0, 0xff2222);
+
+    // Storage Racks W1 (X = -36) and W2 (X = -48)
+    this.buildStorageRack(-36, 0, 10, 3, 8, 14, 'W1');
+    this.buildStorageRack(-36, 0, -10, 3, 8, 14, 'W1B');
+
+    this.buildStorageRack(-48, 0, 10, 3, 8, 14, 'W2');
+    this.buildStorageRack(-48, 0, -10, 3, 8, 14, 'W2B');
+
+    // Overhead Elevated Catwalk Mezzanine (along X = -53, Z from -14 to 14)
+    const catwalkW = 3.2;
+    const catwalkD = 28;
+    const catwalkH = 3.8;
+    const catwalkMesh = new THREE.Mesh(new THREE.BoxGeometry(catwalkW, 0.25, catwalkD), this.metalMat);
+    catwalkMesh.position.set(-53.5, catwalkH, 0);
+    this.scene.add(catwalkMesh);
+
+    // Catwalk access stair ramp
+    const rampMesh = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.3, 10), this.metalMat);
+    rampMesh.position.set(-53.5, catwalkH / 2, 18);
+    rampMesh.rotateX(Math.atan2(catwalkH, 10));
+    this.scene.add(rampMesh);
+
+    // Forklift charging station prop at (-42, 0, 24)
+    const charger = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.2, 0.8), this.hazardMat);
+    charger.position.set(-42, 1.1, 24);
+    this.scene.add(charger);
+    this.collisionBoxes.push(new THREE.Box3().setFromObject(charger));
   }
 
   private buildStorageRack(x: number, y: number, z: number, w: number, h: number, d: number, label: string): void {

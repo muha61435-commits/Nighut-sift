@@ -73,6 +73,24 @@ export class PlayerController {
   private lastMouseY: number = 0;
   public crouchToggle: boolean = false;
 
+  // Touch inputs for smartphones
+  public touchMoveVector: { x: number; y: number } = { x: 0, y: 0 };
+  public touchSprint: boolean = false;
+  public touchCrouch: boolean = false;
+
+  public setTouchMove(x: number, y: number): void {
+    this.touchMoveVector.x = x;
+    this.touchMoveVector.y = y;
+  }
+
+  public applyTouchLook(dx: number, dy: number): void {
+    const touchSensitivity = this.sensitivity * 1.5;
+    this.yaw -= dx * touchSensitivity;
+    this.pitch -= dy * touchSensitivity;
+    const limit = Math.PI / 2 - 0.05;
+    this.pitch = Math.max(-limit, Math.min(limit, this.pitch));
+  }
+
   private bindEvents(domElement: HTMLElement): void {
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
@@ -163,10 +181,24 @@ export class PlayerController {
       this.flashlightFill.intensity = 0;
     }
 
-    // 2. Crouch & Sprint states
-    this.isCrouching = this.crouchToggle || !!this.keys['ControlLeft'] || !!this.keys['ControlRight'] || !!this.keys['KeyC'];
+    // 2. Movement Direction
+    const moveDir = new THREE.Vector3();
+    if (this.keys['KeyW']) moveDir.z -= 1;
+    if (this.keys['KeyS']) moveDir.z += 1;
+    if (this.keys['KeyA']) moveDir.x -= 1;
+    if (this.keys['KeyD']) moveDir.x += 1;
+
+    // Add touch joystick input
+    if (Math.abs(this.touchMoveVector.x) > 0.05 || Math.abs(this.touchMoveVector.y) > 0.05) {
+      moveDir.x += this.touchMoveVector.x;
+      moveDir.z -= this.touchMoveVector.y;
+    }
+
+    // 3. Crouch & Sprint states
+    this.isCrouching = this.crouchToggle || this.touchCrouch || !!this.keys['ControlLeft'] || !!this.keys['ControlRight'] || !!this.keys['KeyC'];
     const canSprint = !this.isCrouching && this.stamina > 10;
-    this.isSprinting = !!this.keys['ShiftLeft'] && canSprint && (!!this.keys['KeyW'] || !!this.keys['KeyS'] || !!this.keys['KeyA'] || !!this.keys['KeyD']);
+    const hasMovement = moveDir.lengthSq() > 0.01;
+    this.isSprinting = (!!this.keys['ShiftLeft'] || this.touchSprint) && canSprint && hasMovement;
 
     // Stamina calculation
     if (this.isSprinting) {
@@ -178,13 +210,6 @@ export class PlayerController {
     // Smooth eye height adjustment
     const targetEyeHeight = this.isCrouching ? this.crouchHeight : this.normalHeight;
     this.currentEyeHeight = THREE.MathUtils.lerp(this.currentEyeHeight, targetEyeHeight, delta * 10.0);
-
-    // 3. Movement Direction
-    const moveDir = new THREE.Vector3();
-    if (this.keys['KeyW']) moveDir.z -= 1;
-    if (this.keys['KeyS']) moveDir.z += 1;
-    if (this.keys['KeyA']) moveDir.x -= 1;
-    if (this.keys['KeyD']) moveDir.x += 1;
 
     let speed = 3.6; // Base walk speed
     if (this.isCrouching) speed = 1.7;
