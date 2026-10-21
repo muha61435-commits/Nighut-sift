@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { PlayerController } from '../entities/PlayerController';
 import { InteractiveObject } from '../types/game';
 import { Zap, Eye, Battery, Hand, Menu } from 'lucide-react';
@@ -11,6 +11,7 @@ interface MobileTouchControlsProps {
   isCrouching: boolean;
   isFlashlightOn: boolean;
   battery: number;
+  forceShow?: boolean;
 }
 
 export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
@@ -21,8 +22,8 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
   isCrouching,
   isFlashlightOn,
   battery,
+  forceShow = false,
 }) => {
-  // Touch detection: active if device supports touch or on small screen
   const [isTouchDevice, setIsTouchDevice] = useState(false);
   const [joystickActive, setJoystickActive] = useState(false);
   const [joystickBase, setJoystickBase] = useState<{ x: number; y: number } | null>(null);
@@ -33,16 +34,24 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
   const lookTouchIdRef = useRef<number | null>(null);
   const lastLookPosRef = useRef<{ x: number; y: number } | null>(null);
 
+  // Responsive touch detection
   useEffect(() => {
-    const hasTouch =
-      'ontouchstart' in window ||
-      navigator.maxTouchPoints > 0 ||
-      window.matchMedia('(pointer: coarse)').matches;
-    setIsTouchDevice(hasTouch);
+    const updateTouchSupport = () => {
+      const hasTouch =
+        'ontouchstart' in window ||
+        navigator.maxTouchPoints > 0 ||
+        window.matchMedia('(pointer: coarse)').matches ||
+        window.innerWidth <= 1024;
+      setIsTouchDevice(hasTouch);
+    };
+
+    updateTouchSupport();
+    window.addEventListener('resize', updateTouchSupport);
+    return () => window.removeEventListener('resize', updateTouchSupport);
   }, []);
 
-  // Joystick touch handlers
-  const handleJoystickStart = (e: React.TouchEvent<HTMLDivElement>) => {
+  // Joystick touch handlers (Left screen zone)
+  const handleJoystickStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
       if (joystickTouchIdRef.current === null) {
@@ -54,9 +63,9 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         break;
       }
     }
-  };
+  }, [player]);
 
-  const handleJoystickMove = (e: React.TouchEvent<HTMLDivElement>) => {
+  const handleJoystickMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     if (joystickTouchIdRef.current === null || !joystickBase) return;
 
     for (let i = 0; i < e.changedTouches.length; i++) {
@@ -79,7 +88,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
           setJoystickThumb({ x: thumbX, y: thumbY });
 
           normX = thumbX / maxRadius;
-          // dy positive is downwards on screen, which is backwards in 3D (-y in forward sense)
+          // dy positive is downwards on screen, which is backwards in 3D (-y forward)
           normY = -(thumbY / maxRadius);
         }
 
@@ -87,9 +96,9 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         break;
       }
     }
-  };
+  }, [joystickBase, player]);
 
-  const handleJoystickEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+  const handleJoystickEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
       if (touch.identifier === joystickTouchIdRef.current) {
@@ -101,10 +110,10 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         break;
       }
     }
-  };
+  }, [player]);
 
-  // Look touch handlers (right side)
-  const handleLookStart = (e: React.TouchEvent<HTMLDivElement>) => {
+  // Look touch handlers (Right screen zone)
+  const handleLookStart = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
       if (lookTouchIdRef.current === null) {
@@ -113,9 +122,9 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         break;
       }
     }
-  };
+  }, []);
 
-  const handleLookMove = (e: React.TouchEvent<HTMLDivElement>) => {
+  const handleLookMove = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     if (lookTouchIdRef.current === null || !lastLookPosRef.current) return;
 
     for (let i = 0; i < e.changedTouches.length; i++) {
@@ -129,9 +138,9 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         break;
       }
     }
-  };
+  }, [player]);
 
-  const handleLookEnd = (e: React.TouchEvent<HTMLDivElement>) => {
+  const handleLookEnd = useCallback((e: React.TouchEvent<HTMLDivElement>) => {
     for (let i = 0; i < e.changedTouches.length; i++) {
       const touch = e.changedTouches[i];
       if (touch.identifier === lookTouchIdRef.current) {
@@ -140,21 +149,23 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         break;
       }
     }
-  };
+  }, []);
 
   // Toggle sprint
-  const toggleSprint = (state?: boolean) => {
-    const next = state !== undefined ? state : !isSprintHeld;
-    setIsSprintHeld(next);
-    player.touchSprint = next;
-  };
+  const toggleSprint = useCallback((state?: boolean) => {
+    setIsSprintHeld((prev) => {
+      const next = state !== undefined ? state : !prev;
+      player.touchSprint = next;
+      return next;
+    });
+  }, [player]);
 
   // Toggle crouch
-  const toggleCrouch = () => {
+  const toggleCrouch = useCallback(() => {
     player.touchCrouch = !player.touchCrouch;
-  };
+  }, [player]);
 
-  if (!isTouchDevice) {
+  if (!isTouchDevice && !forceShow) {
     return null;
   }
 
@@ -163,18 +174,22 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
       className="absolute inset-0 pointer-events-none z-30 select-none overflow-hidden touch-none"
       style={{ touchAction: 'none' }}
     >
-      {/* 1. TOP PAUSE BUTTON */}
+      {/* 1. TOP RIGHT PAUSE / MENU BUTTON FOR MOBILE */}
       <button
+        onTouchStart={(e) => {
+          e.stopPropagation();
+          onTogglePause();
+        }}
         onClick={onTogglePause}
-        className="absolute top-4 right-4 pointer-events-auto p-2.5 bg-black/70 backdrop-blur-md border border-zinc-700 rounded-full text-zinc-300 hover:text-white active:scale-95 transition cursor-pointer shadow-lg"
+        className="absolute top-4 right-4 pointer-events-auto p-3 bg-black/80 backdrop-blur-md border border-zinc-700/80 rounded-full text-zinc-300 hover:text-white active:scale-90 transition cursor-pointer shadow-2xl z-40"
         aria-label="Pause Menu"
       >
-        <Menu size={18} />
+        <Menu size={20} />
       </button>
 
       {/* 2. LEFT HALF: VIRTUAL JOYSTICK MOVEMENT ZONE */}
       <div
-        className="absolute left-0 bottom-0 w-1/2 h-3/4 pointer-events-auto touch-none"
+        className="absolute left-0 bottom-0 w-1/2 h-[80%] pointer-events-auto touch-none z-10"
         onTouchStart={handleJoystickStart}
         onTouchMove={handleJoystickMove}
         onTouchEnd={handleJoystickEnd}
@@ -184,7 +199,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         {/* Dynamic Floating Joystick Base & Thumbstick */}
         {joystickActive && joystickBase && (
           <div
-            className="absolute rounded-full border-2 border-amber-500/50 bg-black/40 backdrop-blur-sm pointer-events-none transition-opacity duration-200"
+            className="absolute rounded-full border-2 border-amber-500/50 bg-black/50 backdrop-blur-md pointer-events-none transition-opacity duration-150"
             style={{
               width: 100,
               height: 100,
@@ -194,7 +209,7 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
           >
             {/* Center Thumbstick */}
             <div
-              className="absolute w-12 h-12 rounded-full bg-gradient-to-tr from-amber-600 to-amber-400 border border-amber-200/60 shadow-[0_0_15px_rgba(245,158,11,0.6)]"
+              className="absolute w-12 h-12 rounded-full bg-gradient-to-tr from-amber-600 to-amber-400 border border-amber-200/70 shadow-[0_0_15px_rgba(245,158,11,0.6)]"
               style={{
                 left: 50 - 24 + joystickThumb.x,
                 top: 50 - 24 + joystickThumb.y,
@@ -205,18 +220,20 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
 
         {/* Ambient indicator when not touching */}
         {!joystickActive && (
-          <div className="absolute left-8 bottom-8 flex flex-col items-center opacity-40 pointer-events-none">
-            <div className="w-20 h-20 rounded-full border border-dashed border-zinc-500 flex items-center justify-center">
-              <div className="w-8 h-8 rounded-full bg-zinc-600/50" />
+          <div className="absolute left-6 bottom-6 flex flex-col items-center opacity-45 pointer-events-none">
+            <div className="w-20 h-20 rounded-full border border-dashed border-amber-500/50 flex items-center justify-center bg-black/30 backdrop-blur-xs">
+              <div className="w-8 h-8 rounded-full bg-amber-500/30 border border-amber-400/40" />
             </div>
-            <span className="text-[10px] text-zinc-400 font-mono mt-1 tracking-wider">MOVE</span>
+            <span className="text-[10px] text-zinc-300 font-mono mt-1 tracking-wider uppercase">
+              ДЖОЙСТИК (ДВИЖЕНИЕ)
+            </span>
           </div>
         )}
       </div>
 
       {/* 3. RIGHT HALF: TOUCH CAMERA LOOK DRAG ZONE */}
       <div
-        className="absolute right-0 bottom-0 w-1/2 h-full pointer-events-auto touch-none"
+        className="absolute right-0 bottom-0 w-1/2 h-full pointer-events-auto touch-none z-10"
         onTouchStart={handleLookStart}
         onTouchMove={handleLookMove}
         onTouchEnd={handleLookEnd}
@@ -224,30 +241,32 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
         style={{ touchAction: 'none' }}
       >
         {/* Ambient look instruction */}
-        <div className="absolute right-8 top-16 opacity-30 pointer-events-none text-right">
-          <span className="text-[10px] text-zinc-400 font-mono tracking-widest">DRAG TO LOOK</span>
+        <div className="absolute right-6 top-16 opacity-35 pointer-events-none text-right">
+          <span className="text-[10px] text-zinc-300 font-mono tracking-widest uppercase">
+            СВАЙП ДЛЯ ОБЗОРА
+          </span>
         </div>
       </div>
 
       {/* 4. ERGONOMIC ACTION BUTTONS (BOTTOM RIGHT OVERLAY) */}
-      <div className="absolute right-5 bottom-6 flex flex-col items-end gap-3 pointer-events-none">
-        {/* INTERACTION / USE BUTTON (Appears prominently when near object) */}
-        {currentTarget ? (
+      <div className="absolute right-4 bottom-5 flex flex-col items-end gap-3 pointer-events-none z-20">
+        {/* INTERACTION / USE BUTTON (Appears prominently when looking at interactable object) */}
+        {currentTarget && (
           <button
             onTouchStart={(e) => {
               e.stopPropagation();
               onInteract();
             }}
             onClick={onInteract}
-            className="pointer-events-auto flex items-center gap-2 px-5 py-3.5 bg-emerald-600/90 hover:bg-emerald-500 active:scale-95 border-2 border-emerald-400 rounded-full text-white font-mono font-black text-xs sm:text-sm tracking-wider uppercase shadow-[0_0_25px_rgba(16,185,129,0.7)] animate-pulse transition"
+            className="pointer-events-auto flex items-center gap-2 px-5 py-3.5 bg-emerald-600/95 hover:bg-emerald-500 active:scale-92 border-2 border-emerald-300 rounded-full text-white font-mono font-black text-xs sm:text-sm tracking-wider uppercase shadow-[0_0_25px_rgba(16,185,129,0.8)] animate-pulse transition cursor-pointer"
           >
             <Hand size={18} />
-            <span>[E] {currentTarget.actionText.length > 18 ? currentTarget.actionText.substring(0, 16) + '...' : currentTarget.actionText}</span>
+            <span>[E] {currentTarget.actionText.length > 20 ? currentTarget.actionText.substring(0, 18) + '...' : currentTarget.actionText}</span>
           </button>
-        ) : null}
+        )}
 
         {/* CLUSTER OF 3 ACTION BUTTONS: RUN, CROUCH, FLASHLIGHT */}
-        <div className="flex items-center gap-2 pointer-events-auto">
+        <div className="flex items-center gap-2.5 pointer-events-auto">
           {/* FLASHLIGHT TOGGLE */}
           <button
             onTouchStart={(e) => {
@@ -255,15 +274,15 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
               player.toggleFlashlight();
             }}
             onClick={() => player.toggleFlashlight()}
-            className={`w-13 h-13 rounded-full flex flex-col items-center justify-center border transition active:scale-90 shadow-xl ${
+            className={`w-14 h-14 rounded-full flex flex-col items-center justify-center border-2 transition active:scale-90 shadow-2xl cursor-pointer ${
               isFlashlightOn
-                ? 'bg-amber-500/90 border-amber-300 text-black shadow-[0_0_15px_rgba(245,158,11,0.5)]'
-                : 'bg-zinc-900/90 border-zinc-700 text-zinc-400'
+                ? 'bg-amber-500 border-amber-200 text-black shadow-[0_0_20px_rgba(245,158,11,0.7)]'
+                : 'bg-zinc-950/90 border-zinc-700 text-zinc-400'
             }`}
-            aria-label="Toggle Torch"
+            aria-label="Фонарик"
           >
             <Battery size={18} />
-            <span className="text-[9px] font-bold mt-0.5">{Math.round(battery)}%</span>
+            <span className="text-[10px] font-mono font-bold mt-0.5">{Math.round(battery)}%</span>
           </button>
 
           {/* CROUCH / SIT STEALTH TOGGLE */}
@@ -273,16 +292,16 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
               toggleCrouch();
             }}
             onClick={toggleCrouch}
-            className={`w-14 h-14 rounded-full flex flex-col items-center justify-center border transition active:scale-90 shadow-xl ${
+            className={`w-14 h-14 rounded-full flex flex-col items-center justify-center border-2 transition active:scale-90 shadow-2xl cursor-pointer ${
               isCrouching
-                ? 'bg-emerald-600 border-emerald-300 text-white shadow-[0_0_20px_rgba(16,185,129,0.7)] animate-pulse'
-                : 'bg-zinc-900/90 border-zinc-700 text-zinc-300'
+                ? 'bg-emerald-600 border-emerald-200 text-white shadow-[0_0_20px_rgba(16,185,129,0.8)] animate-pulse'
+                : 'bg-zinc-950/90 border-zinc-700 text-zinc-300'
             }`}
-            aria-label="Crouch Stealth"
+            aria-label="Присесть"
           >
             <Eye size={18} />
-            <span className="text-[9px] font-bold mt-0.5 tracking-tighter">
-              {isCrouching ? 'HIDDEN' : 'CROUCH'}
+            <span className="text-[9px] font-mono font-bold mt-0.5 tracking-tighter">
+              {isCrouching ? 'ТИХО' : 'ПРИСЕСТЬ'}
             </span>
           </button>
 
@@ -298,15 +317,15 @@ export const MobileTouchControls: React.FC<MobileTouchControlsProps> = ({
             }}
             onMouseDown={() => toggleSprint(true)}
             onMouseUp={() => toggleSprint(false)}
-            className={`w-14 h-14 rounded-full flex flex-col items-center justify-center border transition active:scale-90 shadow-xl ${
+            className={`w-14 h-14 rounded-full flex flex-col items-center justify-center border-2 transition active:scale-90 shadow-2xl cursor-pointer ${
               isSprintHeld
                 ? 'bg-amber-500 border-amber-200 text-black shadow-[0_0_20px_rgba(245,158,11,0.8)]'
-                : 'bg-zinc-900/90 border-zinc-700 text-zinc-300'
+                : 'bg-zinc-950/90 border-zinc-700 text-zinc-300'
             }`}
-            aria-label="Sprint"
+            aria-label="Бег"
           >
             <Zap size={20} />
-            <span className="text-[9px] font-bold mt-0.5 tracking-tighter">RUN</span>
+            <span className="text-[9px] font-mono font-bold mt-0.5 tracking-tighter">БЕГ</span>
           </button>
         </div>
       </div>

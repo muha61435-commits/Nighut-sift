@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Objective, InventoryItem, DocumentNote, AudioLog, InteractiveObject, QualitySettings } from '../types/game';
-import { Volume2, Eye, Shield, Battery, Zap, Key, FileText, Disc, X, Play, RefreshCw, Settings, Info } from 'lucide-react';
+import { Volume2, Eye, Shield, Battery, Zap, Key, FileText, Disc, X, Play, RefreshCw, Settings, Info, Smartphone } from 'lucide-react';
+import { PWAInstallButton } from './PWAInstallButton';
 
 interface GameHUDProps {
   currentObjective: Objective;
@@ -58,6 +59,28 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   onLockPointer,
 }) => {
   const [showSettingsTab, setShowSettingsTab] = useState(false);
+  const [isTouchDevice, setIsTouchDevice] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    return (
+      'ontouchstart' in window ||
+      navigator.maxTouchPoints > 0 ||
+      window.matchMedia('(pointer: coarse)').matches ||
+      window.innerWidth <= 1024
+    );
+  });
+
+  useEffect(() => {
+    const handleResize = () => {
+      setIsTouchDevice(
+        'ontouchstart' in window ||
+        navigator.maxTouchPoints > 0 ||
+        window.matchMedia('(pointer: coarse)').matches ||
+        window.innerWidth <= 1024
+      );
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
     <div className="absolute inset-0 pointer-events-none select-none overflow-hidden font-mono text-zinc-300">
@@ -108,8 +131,8 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             </div>
           )}
 
-          {/* Click to lock mouse prompt if unlocked during active gameplay */}
-          {!isPointerLocked && (
+          {/* Click to lock mouse prompt if unlocked during active gameplay (desktop only) */}
+          {!isPointerLocked && !isTouchDevice && (
             <div
               onClick={onLockPointer}
               className="pointer-events-auto mt-8 px-4 py-2 bg-zinc-900/90 border border-amber-500/40 rounded text-xs text-amber-200 cursor-pointer hover:bg-zinc-800 transition shadow-lg"
@@ -122,76 +145,76 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
       {/* 3. TOP NOTIFICATION BANNER */}
       {notificationMessage && (
-        <div className="absolute top-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/90 border border-amber-500/60 text-amber-300 text-xs tracking-wider rounded uppercase shadow-2xl animate-bounce">
+        <div className="absolute top-4 sm:top-6 left-1/2 -translate-x-1/2 px-4 py-2 bg-black/90 border border-amber-500/60 text-amber-300 text-xs tracking-wider rounded uppercase shadow-2xl animate-bounce z-20">
           {notificationMessage}
         </div>
       )}
 
       {/* 4. TOP LEFT: OBJECTIVE TRACKER */}
-      <div className="absolute top-6 left-6 max-w-sm pointer-events-none">
+      <div className="absolute top-4 sm:top-6 left-4 sm:left-6 max-w-[240px] sm:max-w-sm pointer-events-none z-20">
         <div className="text-[10px] tracking-widest text-zinc-500 uppercase font-semibold">
           CHAPTER {currentObjective.chapter} · {currentObjective.chapterTitle}
         </div>
-        <div className="text-sm font-bold text-zinc-100 tracking-wide mt-0.5 drop-shadow">
+        <div className="text-xs sm:text-sm font-bold text-zinc-100 tracking-wide mt-0.5 drop-shadow">
           {currentObjective.title}
         </div>
-        <div className="text-xs text-zinc-400 leading-relaxed mt-1 bg-black/60 backdrop-blur-sm p-2 rounded border-l-2 border-amber-500/80">
+        <div className="text-[11px] sm:text-xs text-zinc-400 leading-relaxed mt-1 bg-black/60 backdrop-blur-sm p-2 rounded border-l-2 border-amber-500/80">
           {currentObjective.description}
         </div>
       </div>
 
       {/* 5. TOP RIGHT: TIME & SECTOR TELEMETRY */}
-      <div className="absolute top-6 right-6 text-right pointer-events-none">
-        <div className="text-xs text-zinc-500 tracking-widest">FACILITY STATUS</div>
-        <div className="text-sm font-semibold text-zinc-300 tracking-wider">SECTOR 09 · 02:17 AM</div>
-        <div className="text-[10px] text-red-400/90 tracking-widest uppercase mt-0.5 animate-pulse">
+      <div className="absolute top-4 sm:top-6 right-4 sm:right-6 text-right pointer-events-none z-20 pr-12 sm:pr-0">
+        <div className="text-[10px] sm:text-xs text-zinc-500 tracking-widest">FACILITY STATUS</div>
+        <div className="text-xs sm:text-sm font-semibold text-zinc-300 tracking-wider">SECTOR 09 · 02:17 AM</div>
+        <div className="text-[9px] sm:text-[10px] text-red-400/90 tracking-widest uppercase mt-0.5 animate-pulse">
           LOCKDOWN LEVEL 2 ACTIVE
         </div>
       </div>
 
       {/* 6. BOTTOM LEFT: FLASHLIGHT & STAMINA GAUGES */}
-      <div className="absolute bottom-6 left-6 flex flex-col gap-2 pointer-events-none">
+      <div className={`absolute ${isTouchDevice ? 'bottom-26 left-4' : 'bottom-6 left-6'} flex flex-col gap-2 pointer-events-none transition-all duration-200 z-20`}>
         {/* Flashlight status */}
         <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm px-3 py-1.5 rounded border border-zinc-800">
           <Battery
             size={16}
             className={`${isFlashlightOn ? (battery > 20 ? 'text-amber-400' : 'text-red-400 animate-pulse') : 'text-zinc-600'}`}
           />
-          <div className="w-24 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+          <div className="w-20 sm:w-24 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
             <div
               className={`h-full transition-all duration-300 ${battery > 20 ? 'bg-amber-400' : 'bg-red-500'}`}
               style={{ width: `${battery}%` }}
             />
           </div>
           <span className="text-[10px] text-zinc-400 font-mono w-8">{Math.round(battery)}%</span>
-          <span className="text-[9px] text-zinc-500 font-sans">[F] LIGHT</span>
+          <span className="text-[9px] text-zinc-500 font-sans hidden sm:inline">[F] LIGHT</span>
         </div>
 
         {/* Stamina bar */}
         <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm px-3 py-1.5 rounded border border-zinc-800">
           <Zap size={14} className="text-emerald-400" />
-          <div className="w-24 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+          <div className="w-20 sm:w-24 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
             <div
               className="h-full bg-emerald-400 transition-all duration-150"
               style={{ width: `${stamina}%` }}
             />
           </div>
-          <span className="text-[9px] text-zinc-500 font-sans">[SHIFT] RUN</span>
+          <span className="text-[9px] text-zinc-500 font-sans hidden sm:inline">[SHIFT] RUN</span>
         </div>
 
         {/* Crouch / Sitting stealth indicator */}
         {isCrouching && (
           <div className="flex items-center gap-1.5 px-3 py-1 bg-emerald-950/90 border border-emerald-500/70 rounded text-[10px] text-emerald-300 font-bold tracking-wider animate-pulse shadow-lg">
             <Eye size={12} className="text-emerald-400" />
-            <span>CROUCHING [C] — HIDDEN FROM CREATURE</span>
+            <span>CROUCHING — HIDDEN</span>
           </div>
         )}
       </div>
 
       {/* 7. BOTTOM RIGHT: INVENTORY BELT */}
-      <div className="absolute bottom-6 right-6 flex items-center gap-2 pointer-events-none">
+      <div className={`absolute ${isTouchDevice ? 'bottom-26 right-4' : 'bottom-6 right-6'} flex items-center gap-2 pointer-events-none transition-all duration-200 z-20`}>
         {inventory.length === 0 ? (
-          <div className="text-[10px] text-zinc-600 bg-black/50 px-3 py-1.5 rounded border border-zinc-900">
+          <div className="text-[10px] text-zinc-600 bg-black/50 px-3 py-1.5 rounded border border-zinc-900 hidden sm:block">
             INVENTORY EMPTY
           </div>
         ) : (
@@ -387,30 +410,48 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
             {!showSettingsTab ? (
               <div className="mt-6 space-y-4 text-left">
-                <div className="bg-black/40 p-4 rounded border border-zinc-800">
-                  <div className="text-[11px] text-amber-400 font-bold">CONTROLS:</div>
-                  <div className="text-xs text-zinc-300 mt-2 space-y-1 font-sans">
-                    <div><strong>WASD:</strong> Movement</div>
-                    <div><strong>Shift:</strong> Sprint (Consumes Stamina)</div>
-                    <div><strong>C / Ctrl:</strong> Crouch (Sneak past creature)</div>
-                    <div><strong>F:</strong> Flashlight Toggle</div>
-                    <div><strong>E:</strong> Interact with Doors / Terminals / Pickups</div>
-                    <div><strong>ESC:</strong> Pause / Resume</div>
+                {/* Mobile / Keyboard controls breakdown */}
+                <div className="bg-black/50 p-4 rounded-xl border border-zinc-800 space-y-3">
+                  <div>
+                    <div className="text-[11px] text-amber-400 font-bold uppercase tracking-wider flex items-center gap-1.5">
+                      <Smartphone size={13} />
+                      <span>УПРАВЛЕНИЕ НА ТЕЛЕФОНЕ (СЕНСОР):</span>
+                    </div>
+                    <div className="text-xs text-zinc-300 mt-1.5 space-y-1 font-sans">
+                      <div>· <strong>Левая часть экрана:</strong> Виртуальный джойстик (ходьба)</div>
+                      <div>· <strong>Правая часть экрана:</strong> Свайп для поворота камеры</div>
+                      <div>· <strong>Кнопка [БЕГ]:</strong> Ускорение (тратит выносливость)</div>
+                      <div>· <strong>Кнопка [ПРИСЕСТЬ]:</strong> Бесшумный шаг (монстр не слышит вас!)</div>
+                      <div>· <strong>Кнопка [ФОНАРИК]:</strong> Включение/выключение фонаря</div>
+                      <div>· <strong>Кнопка [E]:</strong> Взаимодействие с дверьми, терминалами и ключами</div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-zinc-800/80">
+                    <div className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider">
+                      Управление на ПК:
+                    </div>
+                    <div className="text-[11px] text-zinc-400 mt-1 space-y-0.5 font-sans">
+                      <div>WASD — движение · Shift — бег · C / Ctrl — присесть · F — фонарик · E — действие</div>
+                    </div>
                   </div>
                 </div>
 
-                <div className="flex flex-col gap-2 mt-6">
+                {/* PWA Install Button inside Pause Menu */}
+                <PWAInstallButton variant="prominent" />
+
+                <div className="flex flex-col gap-2 mt-4">
                   <button
                     onClick={onResume}
-                    className="w-full py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs tracking-wider rounded transition"
+                    className="w-full py-3 bg-amber-500 hover:bg-amber-400 active:scale-98 text-black font-black text-xs tracking-wider uppercase rounded-lg transition cursor-pointer"
                   >
-                    RESUME GAME
+                    ПРОДОЛЖИТЬ ИГРУ
                   </button>
                   <button
                     onClick={onRestart}
-                    className="w-full py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs rounded transition flex items-center justify-center gap-2"
+                    className="w-full py-2.5 bg-zinc-800 hover:bg-zinc-700 active:scale-98 text-zinc-300 font-bold text-xs rounded-lg transition flex items-center justify-center gap-2 cursor-pointer"
                   >
-                    <RefreshCw size={14} /> RESTART RUN
+                    <RefreshCw size={14} /> НАЧАТЬ ЗАНОВО
                   </button>
                 </div>
               </div>
